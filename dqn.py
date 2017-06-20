@@ -36,7 +36,8 @@ def learn(env,
           learning_freq=4,
           frame_history_len=4,
           target_update_freq=10000,
-          grad_norm_clipping=10):
+          grad_norm_clipping=10,
+          num_target_values = 10):
     """Run Deep Q-learning algorithm.
 
     You can specify your own convnet using q_func.
@@ -104,7 +105,10 @@ def learn(env,
 
 
     q_values = q_func(input_arg, num_actions).type(dtype)
-    target_q_values = q_func(input_arg, num_actions).type(dtype)
+    target_q_values = {}    
+    for i in range(num_target_values):
+        target_q_values[i] = q_func(input_arg, num_actions).type(dtype)
+    num_active_target = 1
 
     optimizer = optimizer_spec.constructor(q_values.parameters(), **optimizer_spec.kwargs)
     replay_buffer = ReplayBuffer(replay_buffer_size, frame_history_len)
@@ -176,9 +180,25 @@ def learn(env,
             # train the model
 
             q_a_values = q_values(obs_t_batch).gather(1, act_batch.unsqueeze(1))
-            q_a_vales_tp1 = target_q_values(obs_tp1_batch).detach().max(1)[0]
+
+            # print num_actions
+            q_a_values_sum = torch.FloatTensor(batch_size, num_actions).zero_()
+            q_a_values_sum = q_a_values_sum.cuda()
+
+            # print q_a_values_sum
+
+            for i in range(num_active_target):
+                # print target_q_values[0](obs_tp1_batch)
+                q_a_values_sum = torch.add(q_a_values_sum, target_q_values[i](obs_tp1_batch).data)
+
+            q_a_values_sum = Variable(q_a_values_sum)    
+            q_a_vales_tp1 = q_a_values_sum.detach().max(1)[0]
+
+            # print q_a_vales_tp1
+
+            # q_a_vales_tp1 = target_q_values[0](obs_tp1_batch).detach().max(1)[0]
             # q_a_vales_tp1 = not_done_mask * q_a_vales_tp1
-            target_values = rew_batch + (gamma * (1-done_mask) * q_a_vales_tp1)
+            target_values = rew_batch + (gamma / num_active_target * (1-done_mask) * q_a_vales_tp1)
             loss = (target_values - q_a_values).pow(2).sum()
             if t % LOG_EVERY_N_STEPS == 0:
                 print "loss at {} : {}".format(t, loss.data[0])
@@ -188,8 +208,14 @@ def learn(env,
             num_param_updates += 1
 
             # update the target network
-            if t%target_update_freq==0:
-                target_q_values.load_state_dict(q_values.state_dict())
+            if t%target_update_freq==0:                
+                num_active_target += 1
+                print "Update Q Values : Active {} Q values".format(num_active_target)
+                if num_active_target >= num_target_values:
+                    num_active_target = num_target_values
+                for i in range(num_active_target-1, 0, -1):
+                    target_q_values[i].load_state_dict(target_q_values[i-1].state_dict())
+                target_q_values[0].load_state_dict(q_values.state_dict())
 
             #####
 
