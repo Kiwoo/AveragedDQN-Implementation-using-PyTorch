@@ -209,10 +209,10 @@ def learn(env,
 
             # update the target network
             if t%target_update_freq==0:                
-                num_active_target += 1
-                print "Update Q Values : Active {} Q values".format(num_active_target)
+                num_active_target += 1                
                 if num_active_target >= num_target_values:
                     num_active_target = num_target_values
+                print "Update Q Values : Active {} Q values".format(num_active_target)
                 for i in range(num_active_target-1, 0, -1):
                     target_q_values[i].load_state_dict(target_q_values[i-1].state_dict())
                 target_q_values[0].load_state_dict(q_values.state_dict())
