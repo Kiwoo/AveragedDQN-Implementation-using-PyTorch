@@ -51,7 +51,7 @@ def atari_learn(env,
                 num_timesteps):
     # This is just a rough estimate
     num_iterations = float(num_timesteps) / 4.0
-    LEARNING_RATE = 1e-4
+    LEARNING_RATE = 5e-5
     lr_multiplier = 3.0
     lr_schedule = PiecewiseSchedule([
                                          (0,                   1e-4 * lr_multiplier),
